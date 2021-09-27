@@ -1,3 +1,4 @@
+from pymongo.message import _EMPTY
 import requests
 import json
 import time
@@ -12,8 +13,7 @@ book = liber["book"]
 content = requests.get('https://www.saraiva.com.br/livros/administracao?promo_id=administracao&promo_name=administracao-menuexp-livros&promo_creative=link&promo_position=slot8').content
 site = BeautifulSoup(content, 'html.parser')
 livros = site.find('div', attrs={'class': 'vitrine', 'class': 'prateleira'})
-ul = livros.find('ul')
-lis = ul.findAll('li', attrs={'class': 'livros'})
+lis = livros.findAll('li', attrs={'class': 'livros'})
 
 headers = {
     'origin': 'https://www.saraiva.com.br',
@@ -22,41 +22,48 @@ headers = {
 
 livrosModel = []
 
-a = 1
-
-print(len(lis))
-
 for li in lis:
     pid = li.find('div', attrs={'class': '_lazy'})['pid']
-    url = li.find('a', attrs={'class': 'productImage'})['href']
-    url = url[8:len(url)]
-    try:
-        res = requests.get('https://recs.chaordicsystems.com/v0/pages/recommendations?name=product&source=desktop&deviceId=ff5bc017-797b-4bae-8a68-1742d87e01fe&productFormat=complete&url='+url+'&productId='+pid+'', headers=headers)
-        pprint.pprint(res)
-        res = json.loads(str(res.text))
-        if(len(res['middle']) == 0 ):
-            continue
-        print(len(res['middle']))
-        allInfos = res['middle'][0]['displays'][0]['references'][0]
-        print(a)
-        a += 1
+    aux = True
+    while aux: #Retry
+        try:
+            # Requisição para a API
+            res = requests.get('https://recs.chaordicsystems.com/v0/pages/recommendations?name=product&source=mobile&productFormat=complete&productId='+pid, headers=headers)
+            pprint.pprint(res)
+            res = json.loads(str(res.text))
+            allInfos = res['middle'][0]['displays'][0]['references'][0] #Separando a parte que me interessa
 
-        try: acabamento = allInfos['details']['Acabamento'][0]
-        except: acabamento = ''
+            # Formatação de array
+            try: isbn = allInfos['details']['ISBN'][0]
+            except: isbn = ''
+            # Verificação para livros iguais
+            isbnVerificacao = book.find_one({ 'isbn':  isbn})
+            if(isbnVerificacao):
+                print('livro cadastrado')
+                break
+            try: acabamento = allInfos['details']['Acabamento'][0]
+            except: acabamento = ''
+            
+            montandoLivros = {
+                "id": allInfos['id'],
+                "isbn": isbn,
+                "name": allInfos['name'],
+                'images': allInfos['images'],
+                'description': allInfos['description'],
+                'tags': allInfos['tags'],
+                'details': {
+                    'Acabamento': acabamento
+                }   
+            }
 
-        montandoLivros = {
-            "id": allInfos['id'],
-            "name": allInfos['name'],
-            'images': allInfos['images'],
-            'description': allInfos['description'],
-            'tags': allInfos['tags'],
-            'details': {
-                'Acabamento': acabamento
-            }   
-        }
-        pprint.pprint(montandoLivros)
-        livrosModel.append(montandoLivros)
-    except NameError:
-        print(NameError)
+            pprint.pprint(montandoLivros['name'])
+            livrosModel.append(montandoLivros)
+            aux = False 
+        except:
+            aux = True
 
-x = book.insert(livrosModel)
+if(livrosModel):
+    x = book.insert_many(livrosModel) #Insert da lista no banco
+else:
+    print('vazio')
+
