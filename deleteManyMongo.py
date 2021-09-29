@@ -1,7 +1,4 @@
-from pymongo import MongoClient
+import conn
 
-myclient = MongoClient("mongodb://localhost:27017/")
-liber = myclient["liber"]
-book = liber["book"]
-
-book.delete_many({})
+conn.book.delete_many({})
+conn.stock.delete_many({})
