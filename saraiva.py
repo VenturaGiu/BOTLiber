@@ -107,6 +107,7 @@ for urlAdm in variables.urlAdministracao:
                 try:
                     resp = requests.get('https://www.saraiva.com.br/produto/sku/'+psku, headers=variables.headers)
                     pprint.pprint(resp)
+                    print('Esgotado')
                     resp = json.loads(str(resp.text))
 
                     montandoEstoques = {
